@@ -9,20 +9,25 @@ Here's a screenshot of what the main screen might look like.
 ![image](screenshot.png)
 
 You see, the number keys are for selecting unicode blocks.
-That is like the city district for emojis.
+That is like the city district for emojis. The red flag
+indicates what block you are currently viewing.
+
 In the bottom grid, you see the codepoint images for
 each "citizen" of that block. When you press a key A-X,
 the corresponding symbol is copied to the clipboard.
 
-When you press Y and Z you can see more symbols in that
-block.
+When you press Y and Z you can see more symbols (pages)
+of that block.
 
 Press the ESC key to abort the selection.
 
 ## Search Screen
-If you press the `?` `question mark in the main screen,
+If you press the `?` question mark in the main screen,
 you see the search list. Here, you can type a search phrase
 and the program will provide you with a list of likely matches.
+
+The first item in the list will be copied to the clipboard, if
+you press the enter key.
 
 Here's what it might look like:
 ```
@@ -40,8 +45,8 @@ Here's what it might look like:
 ```
 
 ## Trouble
-The `heart hands` of the screach example might look broken
-on your computer.
+The `heart hands` of the search example might look broken
+on your browser. The colons probably will not align.
 
 Here's what the main screen, that also might look broken:
 ```
