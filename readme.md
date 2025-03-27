@@ -1,6 +1,9 @@
 ﻿# STDOUT-EMOJI-PANEL
 Ever wanted to have an emoji picker for the terminal/console?
 Here it is. A fully cin/cout compatible unicode panel.
+
+I needed this for my project [BA67](www.ba67.org).
+
 ## Main Screen
 Here's a screenshot of what the main screen might look like.
 ![image](screenshot.png)
