@@ -155,8 +155,8 @@ class EmojiPicker {
 
     // Levenshtein distance function
     static int levenshtein(const std::string& s1, const std::string& s2) {
-        int m = s1.size();
-        int n = s2.size();
+        int m = int(s1.size());
+        int n = int(s2.size());
         std::vector<std::vector<int>> dp(m + 1, std::vector<int>(n + 1));
 
         for (int i = 0; i <= m; ++i) dp[i][0] = i;
@@ -183,9 +183,13 @@ class EmojiPicker {
         std::string query;
         const auto* points = Font::points();
 
+        const int maxDisplayedItems = 15;
+        int nthItemSelected = 0;
+
         while (true) {
             clearScreen();
-            std::cout << UTF8IFY("🔍 Search: ") << query << "\n";
+
+            int linesWritten = 0;
 
             int minError = 0x7fffffff;
             char32_t currentPick = 0;
@@ -217,16 +221,20 @@ class EmojiPicker {
                     return std::get<2>(a) < std::get<2>(b);
                 });
 
+                if (int(scored.size()) <= nthItemSelected) {
+                    nthItemSelected = 0;
+                }
+
                 // Output
                 int i = 0;
                 for (const auto& [word, ucode, dist] : scored) {
-                    if (i == 10) { break; }
+                    if (i == maxDisplayedItems) { break; }
                     // std::cout << word << " (" << ucode << ") - distance: " << dist << "\n";
-                    if (i == 0) {
+                    if ((i % maxDisplayedItems) == nthItemSelected) {
                         currentPick = ucode;
-                        std::cout << UTF8IFY("👉 ");
+                        std::cout << UTF8IFY("→ ");  // 👉
                     } else {
-                        std::cout << UTF8IFY("  ");
+                        std::cout << UTF8IFY("   ");
                     }
                     moveCursorToColumn(3);
                     std::cout << toUTF8(ucode);
@@ -234,20 +242,31 @@ class EmojiPicker {
                     std::cout << ": " << word << "\n";
 
                     ++i;
+                    ++linesWritten;
                 }
             }
 
-            // Get key
+            for (int i = linesWritten; i < maxDisplayedItems; ++i) {
+                std::cout << "\n";
+            }
+
+            std::cout << UTF8IFY("🔍 Search: ") << query;
+            std::cout.flush();
+
+            // wait for key input
             char ch = mygetch();
 
             if (ch == 27) {  // ESC
                 break;
+            } else if (ch == 9) {  // TAB
+                ++nthItemSelected;
+
             } else if (ch == 127 || ch == 8) {  // Backspace
                 if (!query.empty()) query.pop_back();
+            } else if (ch == '\n' || ch == '\r' || ch == '.') {
+                return currentPick;
             } else if (isprint(static_cast<unsigned char>(ch))) {
                 query.push_back(ch);
-            } else if (ch == '\n' || ch == '\r') {
-                return currentPick;
             }
         }
         return 0;
@@ -276,7 +295,7 @@ class EmojiPicker {
         // Print Emoji Grid
         const int rows = 3, cols = 8;
         int start = currentPageIndex * rows * cols;
-        std::cout << "Page " << (currentPageIndex + 1) << "\n";
+        std::cout << "[ESC] QUIT            Page " << (currentPageIndex + 1) << "\n";
         std::cout << UTF8IFY("┌───┬───┬───┬───┬───┬───┬───┬───┐\n");
         int colWidth = 4;
         for (int row = 0; row < rows; ++row) {
@@ -299,7 +318,7 @@ class EmojiPicker {
                 std::cout << UTF8IFY("├───┼───┼───┼───┼───┼───┼───┼───┤\n");
             } else {
                 std::cout << UTF8IFY("└───┴───┴───┴───┴───┴───┴───┴───┘\n");
-                std::cout << "[Y] PREVIOUS  [Z] NEXT  [ESC] Quit\n";
+                std::cout << "[Y] PREVIOUS  [Z] NEXT   [?] FIND\n";
             }
             std::flush(std::cout);
         }
