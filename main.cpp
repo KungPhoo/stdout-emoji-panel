@@ -25,6 +25,7 @@ class EmojiPicker {
         bool clearScreen = true;
         bool moveCursor = true;
         bool useStdIn = false;  // better use _getch etc.
+        bool ascii = false;     // use as many ASCII characters as possible
         char32_t initialCodePoint = U'😀';
     } options;
 
@@ -250,7 +251,11 @@ class EmojiPicker {
                 std::cout << "\n";
             }
 
-            std::cout << UTF8IFY("🔍 Search: ") << query;
+            if (options.ascii) {
+                std::cout << UTF8IFY("Search: ") << query;
+            } else {
+                std::cout << UTF8IFY("🔍 Search: ") << query;
+            }
             std::cout.flush();
 
             // wait for key input
@@ -278,7 +283,11 @@ class EmojiPicker {
 #if _DEBUG
         std::cout << "012345678.MAX.40.COLUMNS.PLEASE.23456789\n";
 #endif
-        std::cout << UTF8IFY("====== ⚡👈  Emoji Picker ======\n");
+        if (options.ascii) {
+            std::cout << UTF8IFY("====== ⚡👈  EMOJI PICKER ======\n");
+        } else {
+            std::cout << UTF8IFY("====== EMOJI PICKER ======\n");
+        }
         int istartBlock = (currentBlockIndex - numberOfPreviousBlocks + blockCount()) % blockCount();
         for (int i = 0; i < 10; ++i) {
             int iblk = (istartBlock + i) % blockCount();
@@ -295,8 +304,13 @@ class EmojiPicker {
         // Print Emoji Grid
         const int rows = 3, cols = 8;
         int start = currentPageIndex * rows * cols;
-        std::cout << "[ESC] QUIT            Page " << (currentPageIndex + 1) << "\n";
-        std::cout << UTF8IFY("┌───┬───┬───┬───┬───┬───┬───┬───┐\n");
+        std::cout << "[ESC] QUIT            PAGE " << (currentPageIndex + 1) << "\n";
+
+        if (options.ascii) {
+            std::cout << UTF8IFY("#---+---+---+---+---+---+---+---#\n");
+        } else {
+            std::cout << UTF8IFY("┌───┬───┬───┬───┬───┬───┬───┬───┐\n");
+        }
         int colWidth = 4;
         for (int row = 0; row < rows; ++row) {
             for (int col = 0; col < cols; ++col) {
@@ -306,36 +320,34 @@ class EmojiPicker {
                     char32_t ch = currentBlockPoints[index]->code;
 
                     // move, because every terminal displays some emojis in a different width
-                    // if your unicode codepoint is always 1 character, you might ommit this.
+                    // if your Unicode codepoint is always 1 character, you might ommit this.
                     moveCursorToColumn(1 + col * colWidth);
-                    std::cout << UTF8IFY("│") << label << toUTF8(ch) << " ";
+                    if (options.ascii) {
+                        std::cout << UTF8IFY("|") << label << toUTF8(ch) << " ";
+                    } else {
+                        std::cout << UTF8IFY("│") << label << toUTF8(ch) << " ";
+                    }
                 }
             }
             moveCursorToColumn(1 + cols * colWidth);
             std::cout << UTF8IFY("│\n");
             std::flush(std::cout);
             if (row + 1 < rows) {
-                std::cout << UTF8IFY("├───┼───┼───┼───┼───┼───┼───┼───┤\n");
+                if (options.ascii) {
+                    std::cout << UTF8IFY("#---+---+---+---+---+---+---+---#\n");
+                } else {
+                    std::cout << UTF8IFY("├───┼───┼───┼───┼───┼───┼───┼───┤\n");
+                }
             } else {
-                std::cout << UTF8IFY("└───┴───┴───┴───┴───┴───┴───┴───┘\n");
+                if (options.ascii) {
+                    std::cout << UTF8IFY("#---+---+---+---+---+---+---+---#\n");
+                } else {
+                    std::cout << UTF8IFY("└───┴───┴───┴───┴───┴───┴───┴───┘\n");
+                }
                 std::cout << "[Y] PREVIOUS  [Z] NEXT   [?] FIND\n";
             }
             std::flush(std::cout);
         }
-        // Description
-        // std::cout << "\n";
-        // for (int row = 0; row < rows; ++row) {
-        //     for (int col = 0; col < cols; ++col) {
-        //         int index = start + row * cols + col;
-        //         if (index < (int)currentBlockPoints.size()) {
-        //             char label = 'A' + row * cols + col;
-        //             const CodePointName* cp = currentBlockPoints[index];
-        //             std::cout << label << ": U+"
-        //                 << std::hex << std::uppercase << int(cp->code)
-        //                 << " " << cp->name << "\n";
-        //         }
-        //     }
-        // }
     }
 
     char32_t handleInput(char input) {
@@ -429,6 +441,7 @@ int showHelp() {
     std::cout << "--stdin  : use stdin + enter instead of waiting for key press\n";
     std::cout << "--nocls  : don't use clear screen\n";
     std::cout << "--nomove : don't use code to move the cursor\n";
+    std::cout << "--ascii  : use as many ASCII characters as possible\n";
     std::cout << "--start c: start with the page that contains the next codepoint\n";
     std::cout << "--help   : this help\n";
     return 0;
@@ -444,6 +457,7 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "--stdin") == 0) { picker.options.useStdIn = true; }
         if (strcmp(argv[i], "--nocls") == 0) { picker.options.clearScreen = false; }
         if (strcmp(argv[i], "--nomove") == 0) { picker.options.moveCursor = false; }
+        if (strcmp(argv[i], "--ascii") == 0) { picker.options.ascii = true; }
         if (strcmp(argv[i], "--start") == 0) {
             const char* p = argv[i + 1];
             picker.options.initialCodePoint = parseNextUtf8(p);
