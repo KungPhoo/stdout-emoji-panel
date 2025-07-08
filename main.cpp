@@ -15,17 +15,17 @@
     #include <termios.h>
     #include <unistd.h>
 #endif
+#include "font.h"
 
 #define UTF8IFY(a) (const char*)(u8##a)  // std::cout and std::string do not accept u8""
 
-#include "font.h"
 class EmojiPicker {
     public:
     struct Options {
         bool clearScreen = true;
         bool moveCursor = true;
-        bool useStdIn = false;  // better use _getch etc.
-        bool ascii = false;     // use as many ASCII characters as possible
+        // bool useStdIn = true;  // better use _getch etc.
+        bool ascii = false;  // use as many ASCII characters as possible
         char32_t initialCodePoint = U'😀';
     } options;
 
@@ -39,6 +39,27 @@ class EmojiPicker {
     std::vector<const CodePointName*> currentBlockPoints;
     int blockCount() const { return blocksCount; }
 
+    // UTF-8 encoding helper
+    std::string toUTF8(char32_t cp) {
+        std::string result;
+        if (cp <= 0x7F)
+            result += static_cast<char>(cp);
+        else if (cp <= 0x7FF) {
+            result += static_cast<char>(0xC0 | (cp >> 6));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        } else if (cp <= 0xFFFF) {
+            result += static_cast<char>(0xE0 | (cp >> 12));
+            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        } else {
+            result += static_cast<char>(0xF0 | (cp >> 18));
+            result += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            result += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        return result;
+    }
+
     void clearScreen() {
         if (options.clearScreen) {
 #ifdef _WIN32
@@ -50,23 +71,45 @@ class EmojiPicker {
             std::cout << std::string(30, '\n');
         }
     }
+
     char mygetch() {
         char ch = '\0';
-        if (options.useStdIn) {
-            std::cin >> ch;
-        } else {
 #ifdef _WIN32
-            ch = char(_getch());
-#else
-            termios oldt, newt;
-            tcgetattr(STDIN_FILENO, &oldt);  // save old settings
-            newt = oldt;
-            newt.c_lflag &= ~(ICANON | ECHO);         // disable buffering
-            tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // apply new settings
-            read(STDIN_FILENO, &ch, 1);
-            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // restore old settings
-#endif
+        // if (!options.useStdIn) {
+        //     return char(_getch());
+        // }
+
+        // std::cin.get(ch); // waits for enter
+        // std::cin >> ch;   // eats whitespace
+
+        HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode = 0;
+        DWORD bytesRead = 0;
+
+        // 1. Check if stdin is a console
+        if (GetConsoleMode(hStdin, &mode)) {
+            // It's a console, so use real console mode reading
+            // Disable echo and line buffering temporarily
+            DWORD oldMode = mode;
+            SetConsoleMode(hStdin, mode & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT));
+
+            ReadFile(hStdin, &ch, 1, &bytesRead, NULL);
+
+            // Restore old console mode
+            SetConsoleMode(hStdin, oldMode);
+        } else {
+            // 2. Otherwise, stdin is redirected (pipe/file), use ReadFile()
+            ReadFile(hStdin, &ch, 1, &bytesRead, NULL);
         }
+#else
+        termios oldt, newt;
+        tcgetattr(STDIN_FILENO, &oldt);  // save old settings
+        newt = oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);         // disable buffering
+        tcsetattr(STDIN_FILENO, TCSANOW, &newt);  // apply new settings
+        read(STDIN_FILENO, &ch, 1);
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);  // restore old settings
+#endif
         return ch;
     }
 
@@ -284,17 +327,22 @@ class EmojiPicker {
         std::cout << "012345678.MAX.40.COLUMNS.PLEASE.23456789\n";
 #endif
         if (options.ascii) {
-            std::cout << UTF8IFY("====== ⚡👈  EMOJI PICKER ======\n");
-        } else {
             std::cout << UTF8IFY("====== EMOJI PICKER ======\n");
+        } else {
+            std::cout << UTF8IFY("══════ ⚡👈  EMOJI PICKER ══════\n");
         }
         int istartBlock = (currentBlockIndex - numberOfPreviousBlocks + blockCount()) % blockCount();
         for (int i = 0; i < 10; ++i) {
             int iblk = (istartBlock + i) % blockCount();
             std::string key = keyNameForIndex(i);
             if (iblk == currentBlockIndex) {
-                std::string arrow = (const char*)(u8" 🚩");
-                std::cout << "*" << ": " << blocks[iblk].name << arrow << "\n";
+                if (options.ascii) {
+                    std::cout << "--> " << blocks[iblk].name << " ---\n";
+                } else {
+                    const std::string arrow = (const char*)(u8"🚩");
+                    std::cout << UTF8IFY("→  ") << blocks[iblk].name << " " << arrow << UTF8IFY(" ────\n");
+                }
+
             } else {
                 std::cout << key << ": " << blocks[iblk].name << "\n";
             }
@@ -304,29 +352,31 @@ class EmojiPicker {
         // Print Emoji Grid
         const int rows = 3, cols = 8;
         int start = currentPageIndex * rows * cols;
-        std::cout << "[ESC] QUIT            PAGE " << (currentPageIndex + 1) << "\n";
 
         if (options.ascii) {
+            std::cout << "[ESC] QUIT            PAGE " << (currentPageIndex + 1) << "\n";
             std::cout << UTF8IFY("#---+---+---+---+---+---+---+---#\n");
         } else {
+            std::cout << UTF8IFY("[ESC] ❌                  📄 ") << (currentPageIndex + 1) << "\n";
             std::cout << UTF8IFY("┌───┬───┬───┬───┬───┬───┬───┬───┐\n");
         }
         int colWidth = 4;
         for (int row = 0; row < rows; ++row) {
             for (int col = 0; col < cols; ++col) {
                 int index = start + row * cols + col;
+                char label = ' ';
+                char32_t ch = U' ';
                 if (index < (int)currentBlockPoints.size()) {
-                    char label = 'A' + row * cols + col;
-                    char32_t ch = currentBlockPoints[index]->code;
-
-                    // move, because every terminal displays some emojis in a different width
-                    // if your Unicode codepoint is always 1 character, you might ommit this.
-                    moveCursorToColumn(1 + col * colWidth);
-                    if (options.ascii) {
-                        std::cout << UTF8IFY("|") << label << toUTF8(ch) << " ";
-                    } else {
-                        std::cout << UTF8IFY("│") << label << toUTF8(ch) << " ";
-                    }
+                    label = 'A' + row * cols + col;
+                    ch = currentBlockPoints[index]->code;
+                }
+                // move, because every terminal displays some emojis in a different width
+                // if your Unicode codepoint is always 1 character, you might ommit this.
+                moveCursorToColumn(1 + col * colWidth);
+                if (options.ascii) {
+                    std::cout << UTF8IFY("|") << label << toUTF8(ch) << " ";
+                } else {
+                    std::cout << UTF8IFY("│") << label << toUTF8(ch) << " ";
                 }
             }
             moveCursorToColumn(1 + cols * colWidth);
@@ -372,27 +422,6 @@ class EmojiPicker {
             exit(0);
         }
         return 0;
-    }
-
-    // UTF-8 encoding helper
-    std::string toUTF8(char32_t cp) {
-        std::string result;
-        if (cp <= 0x7F)
-            result += static_cast<char>(cp);
-        else if (cp <= 0x7FF) {
-            result += static_cast<char>(0xC0 | (cp >> 6));
-            result += static_cast<char>(0x80 | (cp & 0x3F));
-        } else if (cp <= 0xFFFF) {
-            result += static_cast<char>(0xE0 | (cp >> 12));
-            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-            result += static_cast<char>(0x80 | (cp & 0x3F));
-        } else {
-            result += static_cast<char>(0xF0 | (cp >> 18));
-            result += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-            result += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-            result += static_cast<char>(0x80 | (cp & 0x3F));
-        }
-        return result;
     }
 };
 
@@ -454,7 +483,7 @@ int main(int argc, char* argv[]) {
 
     EmojiPicker picker;
     for (int i = 0; i < argc; ++i) {
-        if (strcmp(argv[i], "--stdin") == 0) { picker.options.useStdIn = true; }
+        // if (strcmp(argv[i], "--stdin") == 0) { picker.options.useStdIn = true; }
         if (strcmp(argv[i], "--nocls") == 0) { picker.options.clearScreen = false; }
         if (strcmp(argv[i], "--nomove") == 0) { picker.options.moveCursor = false; }
         if (strcmp(argv[i], "--ascii") == 0) { picker.options.ascii = true; }
